@@ -1,6 +1,7 @@
 import Message from "../models/Message.js";
 import Chat from "../models/Chat.js";
 import Notification from "../models/Notification.js";
+import User from "../models/User.js";
 import asyncHandler from "../middleware/asyncHandler.js";
 import cloudinary from "../config/cloudinary.js";
 
@@ -106,7 +107,7 @@ export const deleteMessage = asyncHandler(async (req, res) => {
 
 // GET /api/messages/search
 export const searchMessages = asyncHandler(async (req, res) => {
-  const { q, chatId, type, startDate, endDate } = req.query;
+  const { q, chatId, type, startDate, endDate, sender } = req.query;
   const filter = { isDeleted: false };
 
   if (chatId) {
@@ -120,8 +121,24 @@ export const searchMessages = asyncHandler(async (req, res) => {
     filter.chat = { $in: userChats.map((c) => c._id) };
   }
 
-  if (q) filter.$text = { $search: q };
+  if (q) {
+    filter.content = { $regex: q, $options: "i" };
+  }
   if (type) filter.type = type;
+
+  if (sender) {
+    if (sender.match(/^[0-9a-fA-F]{24}$/)) {
+      filter.sender = sender;
+    } else {
+      const users = await User.find({ username: { $regex: sender, $options: "i" } }).select("_id");
+      if (users.length > 0) {
+        filter.sender = { $in: users.map((u) => u._id) };
+      } else {
+        return res.json([]);
+      }
+    }
+  }
+
   if (startDate || endDate) {
     filter.createdAt = {};
     if (startDate) filter.createdAt.$gte = new Date(startDate);

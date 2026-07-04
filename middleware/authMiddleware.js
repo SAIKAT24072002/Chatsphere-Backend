@@ -25,6 +25,8 @@ const protect = asyncHandler(async (req, res, next) => {
     throw new Error("Account deactivated");
   }
   next();
+
+
 });
 
 const adminOnly = (req, res, next) => {
