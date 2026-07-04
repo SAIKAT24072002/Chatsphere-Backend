@@ -57,15 +57,12 @@ app.use("/api/upload",        uploadRoutes);
 app.use("/api/notifications", notificationRoutes);
 
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
-app.get("/", (_req, res) => res.send("Chatsphere API is running..."));
+app.get("/", (req, res) => res.send("Chatsphere API is running..."));
 
 // ── Error handling (must be after routes) ────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
 
-app.get("/",(req,res)=>{
-  res.send("Server is running");
-})
 
 // ── Database ──────────────────────────────────────────────────────────────────
 await connectDB();
