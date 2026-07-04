@@ -25,10 +25,28 @@ import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
 const app    = express();
 const server = createServer(app);
 
+// ── CORS configuration ────────────────────────────────────────────────────────
+const getClientOrigins = () => {
+  const origins = [];
+  if (process.env.CLIENT_URL) {
+    const raw = process.env.CLIENT_URL.trim();
+    origins.push(raw);
+    if (raw.endsWith("/")) {
+      origins.push(raw.slice(0, -1));
+    } else {
+      origins.push(raw + "/");
+    }
+  } else {
+    origins.push("http://localhost:5173", "http://localhost:5173/");
+  }
+  return origins;
+};
+const clientOrigins = getClientOrigins();
+
 // ── Socket.io ─────────────────────────────────────────────────────────────────
 const io = new Server(server, {
   cors: {
-    origin     : process.env.CLIENT_URL,
+    origin     : clientOrigins,
     methods    : ["GET", "POST"],
     credentials: true,
   },
@@ -38,7 +56,7 @@ initializeSocket(io);
 
 // ── Global middleware ─────────────────────────────────────────────────────────
 app.use(cors({
-  origin     : process.env.CLIENT_URL || "http://localhost:5173",
+  origin     : clientOrigins,
   credentials: true,
 }));
 app.use(cookieParser())
