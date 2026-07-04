@@ -2,18 +2,11 @@ import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
 import { upload, streamToCloudinary, cloudinaryParams } from "../config/cloudinary.js";
 import asyncHandler from "../middleware/asyncHandler.js";
+import fs from "fs";
+import path from "path";
 
 const router = express.Router();
 
-/**
- * POST /api/upload/file
- *
- * Flow:
- *  1. Multer saves the file to disk  (uploads/images | uploads/videos | uploads/files)
- *  2. streamToCloudinary reads the local file and pipes it via upload_stream to Cloudinary
- *  3. Local temp file is deleted after the stream finishes (inside streamToCloudinary)
- *  4. Cloudinary secure_url is returned to the client
- */
 router.post(
   "/file",
   protect,
@@ -24,8 +17,33 @@ router.post(
       throw new Error("No file uploaded");
     }
 
-    const { folder, resourceType } = cloudinaryParams(req.file.mimetype);
-    const { url, publicId }        = await streamToCloudinary(req.file.path, folder, resourceType);
+    const fileExt = path.extname(req.file.originalname);
+    const fileName = `${Date.now()}-${Math.round(Math.random() * 1e6)}${fileExt}`;
+
+    // Define permanent local fallback folder
+    const targetDir = path.resolve("uploads/shared");
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    const backupPath = path.join(targetDir, fileName);
+    fs.copyFileSync(req.file.path, backupPath);
+
+    let url = "";
+    let publicId = "";
+
+    try {
+      const { folder, resourceType } = cloudinaryParams(req.file.mimetype);
+      const result = await streamToCloudinary(req.file.path, folder, resourceType);
+      url = result.url;
+      publicId = result.publicId;
+      // Cloudinary succeeded, delete local backup copy to save disk space
+      try { fs.unlinkSync(backupPath); } catch {}
+    } catch (error) {
+      console.error("Cloudinary upload failed, falling back to local storage:", error.message);
+      // Cloudinary failed, serve statically from backend
+      url = `${req.protocol}://${req.get("host")}/uploads/shared/${fileName}`;
+      publicId = `local-${fileName}`;
+    }
 
     res.json({
       url,

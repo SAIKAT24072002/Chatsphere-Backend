@@ -4,6 +4,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import path from "path";
 
 import connectDB from "./config/db.js";
 import { initializeSocket } from "./config/socket.js";
@@ -62,6 +63,7 @@ app.use(cors({
 app.use(cookieParser())
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use("/uploads", express.static(path.resolve("uploads")));
 
 
 // ── Routes ────────────────────────────────────────────────────────────────────

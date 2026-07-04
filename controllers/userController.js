@@ -1,6 +1,8 @@
 import User from "../models/User.js";
 import asyncHandler from "../middleware/asyncHandler.js";
 import { streamToCloudinary, cloudinaryParams } from "../config/cloudinary.js";
+import fs from "fs";
+import path from "path";
 
 // GET /api/users?search=
 export const getUsers = asyncHandler(async (req, res) => {
@@ -44,11 +46,34 @@ export const updateProfile = asyncHandler(async (req, res) => {
 // POST /api/users/avatar  — file saved locally by multer, then streamed to Cloudinary
 export const uploadAvatar = asyncHandler(async (req, res) => {
   if (!req.file) { res.status(400); throw new Error("No file uploaded"); }
-  const { folder, resourceType } = cloudinaryParams(req.file.mimetype);
-  const { url } = await streamToCloudinary(req.file.path, folder, resourceType);
+
+  let avatarUrl = "";
+  const fileExt = path.extname(req.file.originalname);
+  const fileName = `${Date.now()}-${Math.round(Math.random() * 1e6)}${fileExt}`;
+
+  // Define permanent local fallback folder
+  const targetDir = path.resolve("uploads/avatars");
+  if (!fs.existsSync(targetDir)) {
+    fs.mkdirSync(targetDir, { recursive: true });
+  }
+  const backupPath = path.join(targetDir, fileName);
+  fs.copyFileSync(req.file.path, backupPath);
+
+  try {
+    const { folder, resourceType } = cloudinaryParams(req.file.mimetype);
+    const { url } = await streamToCloudinary(req.file.path, folder, resourceType);
+    avatarUrl = url;
+    // Cloudinary succeeded, delete local backup copy to save disk space
+    try { fs.unlinkSync(backupPath); } catch {}
+  } catch (error) {
+    console.error("Cloudinary upload failed, falling back to local storage:", error.message);
+    // Cloudinary failed, serve statically from backend
+    avatarUrl = `${req.protocol}://${req.get("host")}/uploads/avatars/${fileName}`;
+  }
+
   const user = await User.findByIdAndUpdate(
     req.user._id,
-    { avatar: url },
+    { avatar: avatarUrl },
     { new: true }
   );
   res.json({ avatar: user.avatar });
