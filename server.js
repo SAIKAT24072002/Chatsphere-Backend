@@ -63,6 +63,9 @@ app.get("/", (_req, res) => res.send("Chatsphere API is running..."));
 app.use(notFound);
 app.use(errorHandler);
 
+app.get("/",(req,res)=>{
+  res.send("Server is running");
+})
 
 // ── Database ──────────────────────────────────────────────────────────────────
 await connectDB();
