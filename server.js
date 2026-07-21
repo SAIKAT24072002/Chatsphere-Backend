@@ -28,17 +28,25 @@ const server = createServer(app);
 
 // ── CORS configuration ────────────────────────────────────────────────────────
 const getClientOrigins = () => {
-  const origins = [];
+  const origins = [
+    "http://localhost:5173",
+    "http://localhost:5173/",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5173/"
+  ];
   if (process.env.CLIENT_URL) {
     const raw = process.env.CLIENT_URL.trim();
-    origins.push(raw);
-    if (raw.endsWith("/")) {
-      origins.push(raw.slice(0, -1));
-    } else {
-      origins.push(raw + "/");
+    const urls = raw.split(",").map(url => url.trim());
+    for (const url of urls) {
+      if (url) {
+        origins.push(url);
+        if (url.endsWith("/")) {
+          origins.push(url.slice(0, -1));
+        } else {
+          origins.push(url + "/");
+        }
+      }
     }
-  } else {
-    origins.push("http://localhost:5173", "http://localhost:5173/");
   }
   return origins;
 };

@@ -43,7 +43,7 @@ export const updateProfile = asyncHandler(async (req, res) => {
   res.json(user);
 });
 
-// POST /api/users/avatar  — file saved locally by multer, then streamed to Cloudinary
+
 export const uploadAvatar = asyncHandler(async (req, res) => {
   if (!req.file) { res.status(400); throw new Error("No file uploaded"); }
 
