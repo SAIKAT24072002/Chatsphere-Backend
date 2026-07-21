@@ -19,6 +19,7 @@ import uploadRoutes       from "./routes/uploadRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 
 import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
+import User from "./models/User.js";
 
 
 
@@ -94,6 +95,24 @@ app.use(errorHandler);
 
 // ── Database ──────────────────────────────────────────────────────────────────
 await connectDB();
+
+const seedAdmin = async () => {
+  try {
+    const adminExists = await User.findOne({ role: "admin" });
+    if (!adminExists) {
+      await User.create({
+        username: "admin",
+        email: "admin@chatsphere.com",
+        password: "AdminPassword123",
+        role: "admin",
+      });
+      console.log("👑 Default admin account seeded: admin@chatsphere.com / AdminPassword123");
+    }
+  } catch (err) {
+    console.error("Admin seeding failed:", err.message);
+  }
+};
+await seedAdmin();
 
 
 // ── Start ─────────────────────────────────────────────────────────────────────

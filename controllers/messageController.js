@@ -51,9 +51,13 @@ export const sendMessage = asyncHandler(async (req, res) => {
     { path: "replyTo", populate: { path: "sender", select: "username" } },
   ]);
 
-  // Socket broadcast
+  // Socket broadcast to each member's personal room
   const io = req.app.get("io");
-  if (io) io.to(chatId).emit("newMessage", populated);
+  if (io) {
+    chat.members.forEach((memberId) => {
+      io.to(memberId.toString()).emit("newMessage", populated);
+    });
+  }
 
   // Notifications for other members
   const others = chat.members.filter((m) => m.toString() !== req.user._id.toString());
