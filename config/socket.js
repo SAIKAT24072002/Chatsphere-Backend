@@ -22,10 +22,15 @@ export const initializeSocket = (io) => {
 
   io.on("connection", async (socket) => {
     const userId = socket.user._id.toString();
-    onlineUsers.set(userId, socket.id);
+    if (!onlineUsers.has(userId)) {
+      onlineUsers.set(userId, new Set());
+    }
+    onlineUsers.get(userId).add(socket.id);
 
-    await User.findByIdAndUpdate(userId, { status: "online", lastSeen: new Date() });
-    socket.broadcast.emit("userStatus", { userId, status: "online" });
+    if (onlineUsers.get(userId).size === 1) {
+      await User.findByIdAndUpdate(userId, { status: "online", lastSeen: new Date() });
+      socket.broadcast.emit("userStatus", { userId, status: "online" });
+    }
     socket.emit("onlineUsers", Array.from(onlineUsers.keys()));
 
     // Join personal room so we can DM this socket by userId
@@ -86,9 +91,15 @@ export const initializeSocket = (io) => {
 
     // ── Disconnect ───────────────────────────────────────────────────────────
     socket.on("disconnect", async () => {
-      onlineUsers.delete(userId);
-      await User.findByIdAndUpdate(userId, { status: "offline", lastSeen: new Date() });
-      io.emit("userStatus", { userId, status: "offline" });
+      const userSockets = onlineUsers.get(userId);
+      if (userSockets) {
+        userSockets.delete(socket.id);
+        if (userSockets.size === 0) {
+          onlineUsers.delete(userId);
+          await User.findByIdAndUpdate(userId, { status: "offline", lastSeen: new Date() });
+          io.emit("userStatus", { userId, status: "offline" });
+        }
+      }
     });
   });
 };
