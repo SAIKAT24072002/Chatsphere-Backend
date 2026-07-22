@@ -46,7 +46,7 @@ const ALLOWED_MIME = new Set([
 
 export const upload = multer({
   storage,
-  limits : { fileSize: 25 * 1024 * 1024 }, // 25 MB
+  limits : { fileSize: 50 * 1024 * 1024 }, // 50 MB
   fileFilter(req, file, cb) {
     if (ALLOWED_MIME.has(file.mimetype)) cb(null, true);
     else cb(new Error(`File type "${file.mimetype}" is not allowed`), false);
