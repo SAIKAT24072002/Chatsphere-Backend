@@ -62,7 +62,7 @@ export const sendMessage = asyncHandler(async (req, res) => {
   // Notifications for other members
   const others = chat.members.filter((m) => m.toString() !== req.user._id.toString());
   if (others.length) {
-    await Notification.insertMany(
+    const createdNotifs = await Notification.insertMany(
       others.map((memberId) => ({
         recipient: memberId,
         sender: req.user._id,
@@ -73,6 +73,16 @@ export const sendMessage = asyncHandler(async (req, res) => {
         message: message._id,
       }))
     );
+
+    if (io) {
+      createdNotifs.forEach((notif) => {
+        io.to(notif.recipient.toString()).emit("newNotification", {
+          ...notif.toObject(),
+          sender: { _id: req.user._id, username: req.user.username, avatar: req.user.avatar },
+          chat: { _id: chat._id, name: chat.name, isGroup: chat.isGroup },
+        });
+      });
+    }
   }
 
   res.status(201).json(populated);

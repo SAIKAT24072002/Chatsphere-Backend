@@ -55,4 +55,48 @@ router.post(
   })
 );
 
+// GET /api/upload/download?url=...&fileName=...
+router.get(
+  "/download",
+  protect,
+  asyncHandler(async (req, res) => {
+    const { url, fileName } = req.query;
+    if (!url) {
+      res.status(400);
+      throw new Error("File URL is required");
+    }
+
+    const safeName = (fileName || "download").replace(/[/\\?%*:|"<>]/g, "_");
+
+    // Handle local file downloads
+    if (url.includes("/uploads/")) {
+      const relativePath = url.split("/uploads/")[1];
+      const localFilePath = path.resolve("uploads", relativePath);
+      if (fs.existsSync(localFilePath)) {
+        return res.download(localFilePath, safeName);
+      }
+    }
+
+    // Handle remote (e.g. Cloudinary) downloads via streaming
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file from remote source: ${response.statusText}`);
+      }
+
+      const contentType = response.headers.get("content-type") || "application/octet-stream";
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(safeName)}"`);
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      return res.send(buffer);
+    } catch (err) {
+      console.error("Download proxy error:", err.message);
+      res.status(500);
+      throw new Error("Failed to download file");
+    }
+  })
+);
+
 export default router;
