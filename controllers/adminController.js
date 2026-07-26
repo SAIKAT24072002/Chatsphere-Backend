@@ -27,11 +27,56 @@ export const toggleUserStatus = asyncHandler(async (req, res) => {
 
 // GET /api/admin/groups
 export const getAllGroups = asyncHandler(async (req, res) => {
-  const groups = await Chat.find({ isGroup: true })
+  const groups = await Chat.find({ isGroup: true, isActive: { $ne: false } })
     .populate("members", "username email")
     .populate("admins",  "username")
     .sort({ createdAt: -1 });
   res.json(groups);
+});
+
+// POST /api/admin/groups
+export const createGroupAdmin = asyncHandler(async (req, res) => {
+  const { name, description, members, admins } = req.body;
+  if (!name) { res.status(400); throw new Error("Group name required"); }
+  if (!members || members.length === 0) { res.status(400); throw new Error("At least one member required"); }
+
+  const group = await Chat.create({
+    name,
+    description,
+    isGroup: true,
+    members,
+    admins: admins || [req.user._id],
+    createdBy: req.user._id,
+  });
+
+  const fullGroup = await Chat.findById(group._id)
+    .populate("members", "username email")
+    .populate("admins", "username");
+
+  res.status(201).json(fullGroup);
+});
+
+// PUT /api/admin/groups/:id
+export const updateGroupAdmin = asyncHandler(async (req, res) => {
+  const { name, description, members, admins } = req.body;
+  const group = await Chat.findById(req.params.id);
+  if (!group || !group.isGroup || group.isActive === false) {
+    res.status(404);
+    throw new Error("Group not found");
+  }
+
+  if (name) group.name = name;
+  if (description !== undefined) group.description = description;
+  if (members) group.members = members;
+  if (admins) group.admins = admins;
+
+  await group.save();
+
+  const fullGroup = await Chat.findById(group._id)
+    .populate("members", "username email")
+    .populate("admins", "username");
+
+  res.json(fullGroup);
 });
 
 // DELETE /api/admin/groups/:id
