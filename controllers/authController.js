@@ -18,7 +18,8 @@ export const register = asyncHandler(async (req, res) => {
     res.status(400); throw new Error("Username taken");
   }
   const user = await User.create({ username, email, password });
-  res.status(201).json({ user});
+  const token = generateToken(user._id);
+  res.status(201).json({ user, token });
 });
 
 
