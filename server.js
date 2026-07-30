@@ -53,10 +53,29 @@ const getClientOrigins = () => {
 };
 const clientOrigins = getClientOrigins();
 
+const checkOrigin = (origin, callback) => {
+  if (!origin) return callback(null, true);
+  const normalizedOrigin = origin.endsWith("/") ? origin.slice(0, -1) : origin;
+  const isAllowed = clientOrigins.some(allowed => {
+    const normalizedAllowed = allowed.endsWith("/") ? allowed.slice(0, -1) : allowed;
+    return normalizedOrigin === normalizedAllowed;
+  }) ||
+  normalizedOrigin.endsWith(".vercel.app") ||
+  normalizedOrigin.endsWith(".netlify.app") ||
+  /^https?:\/\/localhost(:\d+)?$/.test(normalizedOrigin) ||
+  /^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(normalizedOrigin);
+
+  if (isAllowed) {
+    callback(null, origin);
+  } else {
+    callback(null, false);
+  }
+};
+
 // ── Socket.io ─────────────────────────────────────────────────────────────────
 const io = new Server(server, {
   cors: {
-    origin     : clientOrigins,
+    origin     : checkOrigin,
     methods    : ["GET", "POST"],
     credentials: true,
   },
@@ -66,7 +85,7 @@ initializeSocket(io);
 
 // ── Global middleware ─────────────────────────────────────────────────────────
 app.use(cors({
-  origin     : clientOrigins,
+  origin     : checkOrigin,
   credentials: true,
 }));
 app.use(cookieParser())
