@@ -1,4 +1,6 @@
 import "dotenv/config";
+import dns from "dns";
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
