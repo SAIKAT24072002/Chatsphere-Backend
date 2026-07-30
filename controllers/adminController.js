@@ -1,14 +1,30 @@
 import User from "../models/User.js";
 import Chat from "../models/Chat.js";
 import Message from "../models/Message.js";
+import ActivityLog from "../models/ActivityLog.js";
 import asyncHandler from "../middleware/asyncHandler.js";
 
 // GET /api/admin/users
 export const getAllUsers = asyncHandler(async (req, res) => {
-  const { search, page = 1, limit = 20 } = req.query;
-  const filter = search
-    ? { $or: [{ username: { $regex: search, $options: "i" } }, { email: { $regex: search, $options: "i" } }] }
-    : {};
+  const { search, page = 1, limit = 20, role, status } = req.query;
+  const filter = {};
+
+  if (search) {
+    filter.$or = [
+      { username: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } }
+    ];
+  }
+
+  if (role) {
+    filter.role = role;
+  }
+
+  if (status) {
+    if (status === "active") filter.isActive = true;
+    if (status === "deactivated") filter.isActive = false;
+  }
+
   const [users, total] = await Promise.all([
     User.find(filter).select("-password").skip((page - 1) * limit).limit(parseInt(limit)).sort({ createdAt: -1 }),
     User.countDocuments(filter),
@@ -22,6 +38,16 @@ export const toggleUserStatus = asyncHandler(async (req, res) => {
   if (!user) { res.status(404); throw new Error("User not found"); }
   user.isActive = !user.isActive;
   await user.save();
+
+  // Log activity
+  await ActivityLog.create({
+    admin: req.user._id,
+    action: "TOGGLE_USER_STATUS",
+    target: user.username,
+    details: `User status changed to ${user.isActive ? "active" : "deactivated"}`,
+    ip: req.ip || req.headers["x-forwarded-for"] || "",
+  });
+
   res.json({ isActive: user.isActive });
 });
 
@@ -53,6 +79,15 @@ export const createGroupAdmin = asyncHandler(async (req, res) => {
     .populate("members", "username email")
     .populate("admins", "username");
 
+  // Log activity
+  await ActivityLog.create({
+    admin: req.user._id,
+    action: "CREATE_GROUP",
+    target: name,
+    details: `Created group with ${members?.length || 0} members and ${admins?.length || 0} admins`,
+    ip: req.ip || req.headers["x-forwarded-for"] || "",
+  });
+
   res.status(201).json(fullGroup);
 });
 
@@ -76,12 +111,31 @@ export const updateGroupAdmin = asyncHandler(async (req, res) => {
     .populate("members", "username email")
     .populate("admins", "username");
 
+  // Log activity
+  await ActivityLog.create({
+    admin: req.user._id,
+    action: "UPDATE_GROUP",
+    target: name || group.name,
+    details: `Updated fields: ${Object.keys(req.body).join(", ")}`,
+    ip: req.ip || req.headers["x-forwarded-for"] || "",
+  });
+
   res.json(fullGroup);
 });
 
 // DELETE /api/admin/groups/:id
 export const deleteGroup = asyncHandler(async (req, res) => {
   await Chat.findByIdAndUpdate(req.params.id, { isActive: false });
+
+  // Log activity
+  await ActivityLog.create({
+    admin: req.user._id,
+    action: "DELETE_GROUP",
+    target: req.params.id,
+    details: `Soft deleted group`,
+    ip: req.ip || req.headers["x-forwarded-for"] || "",
+  });
+
   res.json({ message: "Group deleted" });
 });
 
@@ -101,12 +155,32 @@ export const deleteFlaggedMessage = asyncHandler(async (req, res) => {
     deletedAt : new Date(),
     content   : "[Removed by admin]",
   });
+
+  // Log activity
+  await ActivityLog.create({
+    admin: req.user._id,
+    action: "DELETE_FLAGGED_MESSAGE",
+    target: req.params.id,
+    details: `Removed flagged message`,
+    ip: req.ip || req.headers["x-forwarded-for"] || "",
+  });
+
   res.json({ message: "Message removed" });
 });
 
 // PATCH /api/admin/flagged/:id/dismiss
 export const dismissFlaggedMessage = asyncHandler(async (req, res) => {
   await Message.findByIdAndUpdate(req.params.id, { isFlagged: false, flagReason: "" });
+
+  // Log activity
+  await ActivityLog.create({
+    admin: req.user._id,
+    action: "DISMISS_FLAGGED_MESSAGE",
+    target: req.params.id,
+    details: `Dismissed flag on message`,
+    ip: req.ip || req.headers["x-forwarded-for"] || "",
+  });
+
   res.json({ message: "Flag dismissed" });
 });
 
@@ -118,6 +192,7 @@ export const getAnalytics = asyncHandler(async (req, res) => {
     totalUsers, activeUsers, onlineUsers,
     totalChats, totalGroups, totalMessages,
     flaggedMessages, newUsers, recentMessages, msgPerDay,
+    recentActivities,
   ] = await Promise.all([
     User.countDocuments(),
     User.countDocuments({ isActive: true }),
@@ -133,12 +208,17 @@ export const getAnalytics = asyncHandler(async (req, res) => {
       { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
       { $sort: { _id: 1 } },
     ]),
+    ActivityLog.find()
+      .populate("admin", "username")
+      .sort({ createdAt: -1 })
+      .limit(5),
   ]);
 
   res.json({
     totalUsers, activeUsers, onlineUsers,
     totalChats, totalGroups, totalMessages,
     flaggedMessages, newUsers, recentMessages, msgPerDay,
+    recentActivities,
   });
 });
 

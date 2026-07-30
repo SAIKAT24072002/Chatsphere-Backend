@@ -30,11 +30,29 @@ const protect = asyncHandler(async (req, res, next) => {
 });
 
 const adminOnly = (req, res, next) => {
-  if (req.user?.role !== "admin") {
+  if (req.user?.role !== "admin" && req.user?.role !== "superadmin") {
     res.status(403);
     throw new Error("Admin access required");
   }
   next();
 };
 
-export { protect, adminOnly };
+const superAdminOnly = (req, res, next) => {
+  if (req.user?.role !== "superadmin") {
+    res.status(403);
+    throw new Error("Super Admin access required");
+  }
+  next();
+};
+
+const authorizeRoles = (...roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user?.role)) {
+      res.status(403);
+      throw new Error(`Role (${req.user?.role}) is not authorized to access this resource`);
+    }
+    next();
+  };
+};
+
+export { protect, adminOnly, superAdminOnly, authorizeRoles };

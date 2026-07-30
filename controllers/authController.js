@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import LoginHistory from "../models/LoginHistory.js";
 import asyncHandler from "../middleware/asyncHandler.js";
 
 const generateToken = (id) =>
@@ -46,16 +47,88 @@ export const register = asyncHandler(async (req, res) => {
 // POST /api/auth/login
 export const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-  const user = await User.findOne({ email });
-  if (!user) { res.status(400); throw new Error("Invalid credentials"); }
-  if (!user.isActive) { res.status(403); throw new Error("Account deactivated"); }
-  if (!(await user.matchPassword(password))) {
-    res.status(400); throw new Error("Invalid credentials");
+  if (!email || !password) {
+    res.status(400);
+    throw new Error("Email and password are required.");
   }
-  const token=generateToken(user._id);
+  
+  const user = await User.findOne({ email });
+  if (!user) {
+    res.status(400);
+    throw new Error("Invalid credentials");
+  }
+
+  const clientIp = req.ip || req.headers["x-forwarded-for"] || "";
+  const userAgent = req.headers["user-agent"] || "";
+
+  // Check account status
+  if (!user.isActive) {
+    await LoginHistory.create({
+      user: user._id,
+      ip: clientIp,
+      userAgent,
+      status: "failed",
+      failureReason: "Account deactivated",
+    });
+    res.status(403);
+    throw new Error("Account deactivated");
+  }
+
+  // Check lockout status
+  if (user.lockUntil && user.lockUntil > Date.now()) {
+    await LoginHistory.create({
+      user: user._id,
+      ip: clientIp,
+      userAgent,
+      status: "failed",
+      failureReason: "Account temporarily locked due to excessive failed attempts",
+    });
+    const minutesLeft = Math.ceil((user.lockUntil - Date.now()) / (60 * 1000));
+    res.status(403);
+    throw new Error(`Account is temporarily locked. Try again in ${minutesLeft} minute(s).`);
+  }
+
+  // Password matching
+  const isMatch = await user.matchPassword(password);
+  if (!isMatch) {
+    // Increment attempts
+    user.loginAttempts += 1;
+    let lockoutMessage = "";
+    if (user.loginAttempts >= 5) {
+      user.lockUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes lockout
+      user.loginAttempts = 0; // reset attempts for next lockout cycle
+      lockoutMessage = " Too many failed attempts. Your account has been locked for 15 minutes.";
+    }
+    await user.save();
+
+    await LoginHistory.create({
+      user: user._id,
+      ip: clientIp,
+      userAgent,
+      status: "failed",
+      failureReason: "Incorrect password",
+    });
+
+    res.status(400);
+    throw new Error(`Invalid credentials.${lockoutMessage}`);
+  }
+
+  // Success path
+  user.loginAttempts = 0;
+  user.lockUntil = undefined;
+  await user.save();
+
+  await LoginHistory.create({
+    user: user._id,
+    ip: clientIp,
+    userAgent,
+    status: "success",
+  });
+
+  const token = generateToken(user._id);
   res
-  .cookie("token",token,{httpOnly:true,secure:false,maxAge:24*60*60*1000})
-  .json({ user, token: generateToken(user._id) });
+    .cookie("token", token, { httpOnly: true, secure: false, maxAge: 24 * 60 * 60 * 1000 })
+    .json({ user, token });
 });
 
 

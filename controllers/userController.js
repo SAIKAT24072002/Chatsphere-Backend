@@ -32,13 +32,35 @@ export const updateProfile = asyncHandler(async (req, res) => {
   const { username, bio, customStatus } = req.body;
   const user = await User.findById(req.user._id);
   if (username && username !== user.username) {
-    if (await User.findOne({ username })) {
-      res.status(400); throw new Error("Username taken");
+    const trimmed = username.trim();
+    if (trimmed.length < 3 || trimmed.length > 30) {
+      res.status(400);
+      throw new Error("Username must be between 3 and 30 characters long.");
     }
-    user.username = username;
+    if (!/^[a-zA-Z0-9_]+$/.test(trimmed)) {
+      res.status(400);
+      throw new Error("Username can only contain letters, numbers, and underscores.");
+    }
+    if (await User.findOne({ username: trimmed })) {
+      res.status(400);
+      throw new Error("Username taken");
+    }
+    user.username = trimmed;
   }
-  if (bio         !== undefined) user.bio          = bio;
-  if (customStatus !== undefined) user.customStatus = customStatus;
+  if (bio !== undefined) {
+    if (bio.length > 200) {
+      res.status(400);
+      throw new Error("Bio cannot exceed 200 characters.");
+    }
+    user.bio = bio;
+  }
+  if (customStatus !== undefined) {
+    if (customStatus.length > 100) {
+      res.status(400);
+      throw new Error("Status message cannot exceed 100 characters.");
+    }
+    user.customStatus = customStatus;
+  }
   await user.save();
   res.json(user);
 });

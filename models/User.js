@@ -11,13 +11,15 @@ const userSchema = new mongoose.Schema(
     status      : { type: String, enum: ["online", "offline", "away", "busy"], default: "offline" },
     customStatus: { type: String, default: "", maxlength: 100 },
     lastSeen    : { type: Date, default: Date.now },
-    role        : { type: String, enum: ["user", "admin"], default: "user" },
+    role        : { type: String, enum: ["user", "admin", "superadmin"], default: "user" },
     isActive    : { type: Boolean, default: true },
     blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     notifications: {
       messages: { type: Boolean, default: true },
       mentions: { type: Boolean, default: true },
     },
+    loginAttempts: { type: Number, required: true, default: 0 },
+    lockUntil:     { type: Date },
   },
   { timestamps: true }
 );
