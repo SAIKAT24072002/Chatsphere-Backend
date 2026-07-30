@@ -98,10 +98,21 @@ export const updatePassword = asyncHandler(async (req, res) => {
     throw new Error("New password cannot be the same as the current password.");
   }
 
-  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>_]).{8,}$/;
-  if (!passwordRegex.test(newPassword)) {
+  if (newPassword.length < 6) {
     res.status(400);
-    throw new Error("Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.");
+    throw new Error("Password must be at least 6 characters long.");
+  }
+  if (!/[A-Z]/.test(newPassword)) {
+    res.status(400);
+    throw new Error("Password must contain at least one uppercase letter.");
+  }
+  if (!/[a-z]/.test(newPassword)) {
+    res.status(400);
+    throw new Error("Password must contain at least one lowercase letter.");
+  }
+  if (!/[0-9]/.test(newPassword)) {
+    res.status(400);
+    throw new Error("Password must contain at least one number.");
   }
 
   user.password = newPassword;

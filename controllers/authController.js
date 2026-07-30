@@ -17,6 +17,25 @@ export const register = asyncHandler(async (req, res) => {
   if (await User.findOne({ username })) {
     res.status(400); throw new Error("Username taken");
   }
+
+  // Password validation:
+  if (password.length < 6) {
+    res.status(400);
+    throw new Error("Password must be at least 6 characters long.");
+  }
+  if (!/[A-Z]/.test(password)) {
+    res.status(400);
+    throw new Error("Password must contain at least one uppercase letter.");
+  }
+  if (!/[a-z]/.test(password)) {
+    res.status(400);
+    throw new Error("Password must contain at least one lowercase letter.");
+  }
+  if (!/[0-9]/.test(password)) {
+    res.status(400);
+    throw new Error("Password must contain at least one number.");
+  }
+
   const user = await User.create({ username, email, password });
   const token = generateToken(user._id);
   res.status(201).json({ user, token });
