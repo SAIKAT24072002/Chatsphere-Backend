@@ -117,15 +117,15 @@ await connectDB();
 
 const seedAdmin = async () => {
   try {
-    const adminExists = await User.findOne({ role: "admin" });
+    const adminExists = await User.findOne({ email: "admin@gmail.com" });
     if (!adminExists) {
       await User.create({
         username: "admin",
-        email: "admin@chatsphere.com",
-        password: "AdminPassword123",
+        email: "admin@gmail.com",
+        password: "Admin123",
         role: "admin",
       });
-      console.log("👑 Default admin account seeded: admin@chatsphere.com / AdminPassword123");
+      console.log("👑 Default admin account seeded: admin@gmail.com / Admin123");
     }
   } catch (err) {
     console.error("Admin seeding failed:", err.message);

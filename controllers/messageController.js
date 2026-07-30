@@ -13,7 +13,7 @@ export const getMessages = asyncHandler(async (req, res) => {
 
   const chat = await Chat.findById(chatId);
   if (!chat) { res.status(404); throw new Error("Chat not found"); }
-  if (!chat.members.includes(req.user._id)) {
+  if (!chat.members.some((m) => m.toString() === req.user._id.toString())) {
     res.status(403); throw new Error("Not a member");
   }
 
@@ -35,7 +35,7 @@ export const sendMessage = asyncHandler(async (req, res) => {
 
   const chat = await Chat.findById(chatId);
   if (!chat) { res.status(404); throw new Error("Chat not found"); }
-  if (!chat.members.includes(req.user._id)) {
+  if (!chat.members.some((m) => m.toString() === req.user._id.toString())) {
     res.status(403); throw new Error("Not a member");
   }
 
@@ -126,7 +126,7 @@ export const searchMessages = asyncHandler(async (req, res) => {
 
   if (chatId) {
     const chat = await Chat.findById(chatId);
-    if (!chat?.members.includes(req.user._id)) {
+    if (!chat?.members.some((m) => m.toString() === req.user._id.toString())) {
       res.status(403); throw new Error("Not a member");
     }
     filter.chat = chatId;

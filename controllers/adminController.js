@@ -141,3 +141,95 @@ export const getAnalytics = asyncHandler(async (req, res) => {
     flaggedMessages, newUsers, recentMessages, msgPerDay,
   });
 });
+
+// GET /api/admin/reports
+export const getReports = asyncHandler(async (req, res) => {
+  const last7Days = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const last30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const [
+    totalUsers,
+    activeUsers,
+    onlineUsers,
+    totalChats,
+    totalGroups,
+    totalDirect,
+    totalMessages,
+    newUsers7d,
+    newUsers30d,
+    messages7d,
+    messages30d,
+    msgPerDay30,
+    registrationsPerDay30,
+    mostActiveUsers,
+  ] = await Promise.all([
+    User.countDocuments(),
+    User.countDocuments({ isActive: true }),
+    User.countDocuments({ status: "online" }),
+    Chat.countDocuments({ isActive: true }),
+    Chat.countDocuments({ isGroup: true, isActive: true }),
+    Chat.countDocuments({ isGroup: false, isActive: true }),
+    Message.countDocuments({ isDeleted: false }),
+    User.countDocuments({ createdAt: { $gte: last7Days } }),
+    User.countDocuments({ createdAt: { $gte: last30Days } }),
+    Message.countDocuments({ createdAt: { $gte: last7Days }, isDeleted: false }),
+    Message.countDocuments({ createdAt: { $gte: last30Days }, isDeleted: false }),
+    Message.aggregate([
+      { $match: { createdAt: { $gte: last30Days }, isDeleted: false } },
+      { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+      { $sort: { _id: 1 } },
+    ]),
+    User.aggregate([
+      { $match: { createdAt: { $gte: last30Days } } },
+      { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+      { $sort: { _id: 1 } },
+    ]),
+    Message.aggregate([
+      { $match: { isDeleted: false } },
+      { $group: { _id: "$sender", messageCount: { $sum: 1 } } },
+      { $sort: { messageCount: -1 } },
+      { $limit: 10 },
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "userInfo"
+        }
+      },
+      { $unwind: { path: "$userInfo", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 1,
+          messageCount: 1,
+          username: { $ifNull: ["$userInfo.username", "Unknown User"] },
+          email: { $ifNull: ["$userInfo.email", ""] },
+          avatar: { $ifNull: ["$userInfo.avatar", ""] }
+        }
+      }
+    ]),
+  ]);
+
+  // Compute averages
+  const avgMessagesPerUser = totalUsers > 0 ? parseFloat((totalMessages / totalUsers).toFixed(2)) : 0;
+  const avgMessagesPerChat = totalChats > 0 ? parseFloat((totalMessages / totalChats).toFixed(2)) : 0;
+
+  res.json({
+    totalUsers,
+    activeUsers,
+    onlineUsers,
+    totalChats,
+    totalGroups,
+    totalDirect,
+    totalMessages,
+    newUsers7d,
+    newUsers30d,
+    messages7d,
+    messages30d,
+    msgPerDay30,
+    registrationsPerDay30,
+    mostActiveUsers,
+    avgMessagesPerUser,
+    avgMessagesPerChat,
+  });
+});
