@@ -82,13 +82,31 @@ export const uploadAvatar = asyncHandler(async (req, res) => {
 // PUT /api/users/password
 export const updatePassword = asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    res.status(400);
+    throw new Error("All fields are required.");
+  }
+  
   const user = await User.findById(req.user._id);
   if (!(await user.matchPassword(currentPassword))) {
-    res.status(400); throw new Error("Current password incorrect");
+    res.status(400);
+    throw new Error("Current password is incorrect.");
   }
+
+  if (currentPassword === newPassword) {
+    res.status(400);
+    throw new Error("New password cannot be the same as the current password.");
+  }
+
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>_]).{8,}$/;
+  if (!passwordRegex.test(newPassword)) {
+    res.status(400);
+    throw new Error("Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.");
+  }
+
   user.password = newPassword;
   await user.save();
-  res.json({ message: "Password updated" });
+  res.json({ message: "Password updated successfully." });
 });
 
 // PUT /api/users/notifications
