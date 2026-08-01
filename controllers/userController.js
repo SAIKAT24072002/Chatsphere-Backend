@@ -29,7 +29,7 @@ export const getUserById = asyncHandler(async (req, res) => {
 
 // PUT /api/users/profile
 export const updateProfile = asyncHandler(async (req, res) => {
-  const { username, bio, customStatus } = req.body;
+  const { username, bio, customStatus, status } = req.body;
   const user = await User.findById(req.user._id);
   if (username && username !== user.username) {
     const trimmed = username.trim();
@@ -60,6 +60,15 @@ export const updateProfile = asyncHandler(async (req, res) => {
       throw new Error("Status message cannot exceed 100 characters.");
     }
     user.customStatus = customStatus;
+  }
+  if (status !== undefined) {
+    const valid = ["online", "offline", "away", "busy"];
+    if (valid.includes(status)) {
+      user.status = status;
+    } else {
+      res.status(400);
+      throw new Error("Invalid status option.");
+    }
   }
   await user.save();
   res.json(user);
