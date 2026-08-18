@@ -62,16 +62,31 @@ export const upload = multer({
  */
 export const streamToCloudinary = (localPath, folder, resourceType = "auto") =>
   new Promise((resolve, reject) => {
+    let settled = false;
+    let readStream;
+    const finish = (error, result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      fs.unlink(localPath, () => {});
+      if (error) return reject(error);
+      resolve({ url: result.secure_url, publicId: result.public_id });
+    };
     const stream = cloudinary.uploader.upload_stream(
       { folder, resource_type: resourceType },
-      (error, result) => {
-        // Always delete the local temp file after attempting upload
-        fs.unlink(localPath, () => {});
-        if (error) return reject(error);
-        resolve({ url: result.secure_url, publicId: result.public_id });
-      }
+      finish
     );
-    fs.createReadStream(localPath).pipe(stream);
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      readStream?.destroy();
+      stream.destroy?.();
+      fs.unlink(localPath, () => {});
+      reject(new Error("Cloudinary upload timed out"));
+    }, 15000);
+    readStream = fs.createReadStream(localPath);
+    readStream.on("error", (error) => finish(error));
+    readStream.pipe(stream);
   });
 
 // ── Helper: pick Cloudinary folder + resource_type from MIME ─────────────────

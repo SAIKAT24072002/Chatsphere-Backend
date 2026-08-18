@@ -2,7 +2,11 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import Message from "../models/Message.js";
 
-const onlineUsers = new Map(); // userId → socketId
+const onlineUsers = new Map(); // userId -> Set<socketId>
+
+const broadcastOnlineUsers = (io) => {
+  io.emit("onlineUsers", Array.from(onlineUsers.keys()));
+};
 
 export const initializeSocket = (io) => {
   // ── Auth middleware ──────────────────────────────────────────────────────────
@@ -28,18 +32,30 @@ export const initializeSocket = (io) => {
     onlineUsers.get(userId).add(socket.id);
 
     if (onlineUsers.get(userId).size === 1) {
-      await User.findByIdAndUpdate(userId, { status: "online", lastSeen: new Date() });
-      socket.broadcast.emit("userStatus", { userId, status: "online" });
+      const currentStatus = socket.user.status;
+      const status = currentStatus === "away" || currentStatus === "busy"
+        ? currentStatus
+        : "online";
+      User.findByIdAndUpdate(userId, { status, lastSeen: new Date() })
+        .then(() => io.emit("userStatus", { userId, status }))
+        .catch((error) => console.error("Presence update failed:", error.message));
     }
-    socket.emit("onlineUsers", Array.from(onlineUsers.keys()));
+    broadcastOnlineUsers(io);
 
     // Join personal room so we can DM this socket by userId
     socket.join(userId);
 
     // ── Room management ──────────────────────────────────────────────────────
-    socket.on("joinRoom",  (roomId) => socket.join(roomId));
+    socket.on("joinRoom", (roomId, acknowledge) => {
+      if (typeof roomId === "string" && roomId) {
+        socket.join(roomId);
+        if (typeof acknowledge === "function") acknowledge({ joined: true, roomId });
+      }
+    });
     
-    socket.on("leaveRoom", (roomId) => socket.leave(roomId));
+    socket.on("leaveRoom", (roomId) => {
+      if (typeof roomId === "string" && roomId) socket.leave(roomId);
+    });
 
     // ── Messaging ────────────────────────────────────────────────────────────
     // socket.on("sendMessage", async (data) => {
@@ -67,6 +83,7 @@ export const initializeSocket = (io) => {
 
     // ── Typing indicator ─────────────────────────────────────────────────────
     socket.on("typing", ({ chatId, isTyping }) => {
+      if (typeof chatId !== "string" || !chatId) return;
       socket.to(chatId).emit("typing", {
         userId,
         username: socket.user.username,
@@ -96,8 +113,9 @@ export const initializeSocket = (io) => {
         userSockets.delete(socket.id);
         if (userSockets.size === 0) {
           onlineUsers.delete(userId);
-          await User.findByIdAndUpdate(userId, { status: "offline", lastSeen: new Date() });
+          await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
           io.emit("userStatus", { userId, status: "offline" });
+          broadcastOnlineUsers(io);
         }
       }
     });

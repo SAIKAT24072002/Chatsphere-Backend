@@ -54,7 +54,7 @@ export const login = asyncHandler(async (req, res) => {
   
   const user = await User.findOne({ email });
   if (!user) {
-    res.status(400);
+    res.status(401);
     throw new Error("Invalid credentials");
   }
 
@@ -109,7 +109,7 @@ export const login = asyncHandler(async (req, res) => {
       failureReason: "Incorrect password",
     });
 
-    res.status(400);
+    res.status(401);
     throw new Error(`Invalid credentials.${lockoutMessage}`);
   }
 
@@ -127,7 +127,12 @@ export const login = asyncHandler(async (req, res) => {
 
   const token = generateToken(user._id);
   res
-    .cookie("token", token, { httpOnly: true, secure: false, maxAge: 24 * 60 * 60 * 1000 })
+    .cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 24 * 60 * 60 * 1000,
+    })
     .json({ user, token });
 });
 

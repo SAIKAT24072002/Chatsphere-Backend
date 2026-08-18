@@ -118,16 +118,27 @@ app.use(errorHandler);
 await connectDB();
 
 const seedAdmin = async () => {
+  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const password = process.env.ADMIN_PASSWORD;
+  const username = process.env.ADMIN_USERNAME?.trim() || "admin";
+  if (!email || !password) {
+    console.log("Admin seeding skipped: ADMIN_EMAIL and ADMIN_PASSWORD are not configured");
+    return;
+  }
+  if (password.length < 10) {
+    console.error("Admin seeding skipped: ADMIN_PASSWORD must contain at least 10 characters");
+    return;
+  }
   try {
-    const adminExists = await User.findOne({ email: "admin@gmail.com" });
+    const adminExists = await User.findOne({ email });
     if (!adminExists) {
       await User.create({
-        username: "admin",
-        email: "admin@gmail.com",
-        password: "Admin123",
+        username,
+        email,
+        password,
         role: "admin",
       });
-      console.log("👑 Default admin account seeded: admin@gmail.com / Admin123");
+      console.log("Admin account seeded from environment configuration");
     }
   } catch (err) {
     console.error("Admin seeding failed:", err.message);
